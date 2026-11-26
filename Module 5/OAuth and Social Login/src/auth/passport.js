@@ -1,3 +1,4 @@
+
 'use strict';
 // auth/passport.js — Google OAuth strategy
 //
@@ -45,8 +46,49 @@ const { users, nextId } = require('../data');
 // Hint: use Array.prototype.find() on `users`. No database, no await needed.
 // ───────────────────────────────────────────────────────────────────────────────
 async function verifyCallback(accessToken, refreshToken, profile, done) {
-  // Replace this stub with your implementation.
-  return done(null, false);
+  try {
+    const googleId = profile.id;
+    const email = profile.emails[0].value;
+
+    // 1. Check for returning OAuth user
+    let user = users.find(u => u.googleId === googleId);
+
+    if (user) {
+      return done(null, user);
+    }
+
+    // 2. Check for existing local account
+    user = users.find(u => u.email === email);
+
+    if (user) {
+      // Only link if Google has verified the email
+      if (!profile._json.email_verified) {
+        return done(null, false);
+      }
+
+      // Link the Google account to existing user
+      user.googleId = googleId;
+
+      return done(null, user);
+    }
+
+    // 3. Create a brand-new user
+    const newUser = {
+      id: nextId(),
+      googleId: googleId,
+      email: email,
+      name: profile.displayName,
+      role: 'member'
+    };
+
+    // Add new user to the users array
+    users.push(newUser);
+
+    return done(null, newUser);
+
+  } catch (err) {
+    return done(err);
+  }
 }
 
 passport.use(
